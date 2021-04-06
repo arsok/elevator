@@ -1,9 +1,8 @@
 package com.qbutton.elevator.elevator.impl
 
-import com.qbutton.elevator.ThreadLogger
 import com.qbutton.elevator.elevator.Dispatcher
-import com.qbutton.elevator.elevator.Dispatcher.passengersCount
 import com.qbutton.elevator.elevator.api.Elevator
+import com.qbutton.elevator.logger.ThreadLogger
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -22,8 +21,7 @@ class ElevatorImpl : Elevator {
             log.info("waiting for doors to open to enter")
             TimeUnit.MILLISECONDS.sleep(30)
         }
-        passengersCount.incrementAndGet()
-        log.info("Entered elevator, now passengers count is ${passengersCount.get()}")
+        log.info("Entered elevator")
     }
 
     override fun exit() {
@@ -31,8 +29,7 @@ class ElevatorImpl : Elevator {
             log.info("waiting for doors to open to exit")
             TimeUnit.MILLISECONDS.sleep(30)
         }
-        passengersCount.decrementAndGet()
-        log.info("Exited elevator, now passengers count is ${passengersCount.get()}")
+        log.info("Exited elevator")
     }
 
     override fun requestFloor(floorNumber: Int) {
@@ -79,10 +76,7 @@ class ElevatorImpl : Elevator {
                     nextFloor = Dispatcher.requests.lower(curFloor)
                     if (nextFloor != null) direction = Direction.DOWN
                 }
-                if (nextFloor == null) {
-                    direction = Direction.UP
-                    continue
-                }
+                if (nextFloor == null) continue
 
                 Dispatcher.requests.remove(nextFloor)
                 visitFloor(nextFloor)

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
+import kotlin.test.assertEquals
 
 class SimpleTest {
     private val elevator: ElevatorImpl = ElevatorImpl()
@@ -34,9 +35,7 @@ class SimpleTest {
 
         TimeUnit.SECONDS.sleep(30)
 
-        print(elevator.visitedFloors)
-
-        //assertEquals(listOf(6, 7, 8, 10, 12, 15, 2, 0, 4, 7, 22, 5), elevator.visitedFloors, "foil")
+        assertEquals(listOf(6, 7, 8, 10, 12, 15, 2, 0, 4, 7, 22, 5), elevator.visitedFloors, "foil")
     }
 
     @Test
