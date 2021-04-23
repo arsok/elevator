@@ -1,0 +1,4 @@
+- name: Setup Kotlin
+  # You may pin to the exact commit or the version.
+  # uses: fwilhe2/setup-kotlin@f5c4ad2f991043954a8c5d6b9d69fbed78e3eba6
+  uses: fwilhe2/setup-kotlin@0.2.0
