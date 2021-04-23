@@ -2,84 +2,87 @@ package com.qbutton.elevator.elevator.impl
 
 import com.qbutton.elevator.elevator.Dispatcher
 import com.qbutton.elevator.elevator.api.Elevator
-import com.qbutton.elevator.logger.ThreadLogger
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
+import org.slf4j.LoggerFactory
+import java.util.concurrent.TimeUnit.MILLISECONDS
+import kotlin.concurrent.fixedRateTimer
 
 class ElevatorImpl : Elevator {
-
-    val visitedFloors = CopyOnWriteArrayList<Int>()
-    private val log = ThreadLogger(this.javaClass.name)
+    private val log = LoggerFactory.getLogger(javaClass)
 
     private var direction = Direction.UP
+    private var doorsOpen = true
 
-    private val doorsOpen = AtomicBoolean(true)
+    val visitedFloors = mutableListOf<Int>()
+
+    init {
+        loop()
+    }
 
     override fun enter() {
-        while (!doorsOpen.get()) {
+        while (!doorsOpen) {
             log.info("waiting for doors to open to enter")
-            TimeUnit.MILLISECONDS.sleep(30)
+            MILLISECONDS.sleep(30)
         }
         log.info("Entered elevator")
     }
 
     override fun exit() {
-        while (!doorsOpen.get()) {
+        while (!doorsOpen) {
             log.info("waiting for doors to open to exit")
-            TimeUnit.MILLISECONDS.sleep(30)
+            MILLISECONDS.sleep(30)
         }
         log.info("Exited elevator")
     }
 
     override fun requestFloor(floorNumber: Int) {
-        log.info("requested floor $floorNumber, adding it to queue and waiting")
-        Dispatcher.requests.add(floorNumber)
+        val curFloor = Dispatcher.floor.get()
+        log.info("requested floor $floorNumber from $curFloor, adding it to queue and waiting")
+
+        if (floorNumber > curFloor) Dispatcher.requestsUp.add(floorNumber)
+        else Dispatcher.requestsDown.add(floorNumber)
+
         while (Dispatcher.floor.get() != floorNumber) {
-            TimeUnit.MILLISECONDS.sleep(100)
+            MILLISECONDS.sleep(100)
         }
     }
 
     private fun visitFloor(floorNumber: Int) {
-        if (floorNumber == 0) direction = Direction.UP
         Dispatcher.floor.set(floorNumber)
-        openDoors()
-        log.info("visiting floor $floorNumber for a while")
-        TimeUnit.MILLISECONDS.sleep(300)
-        closeDoors()
         visitedFloors.add(floorNumber)
+        log.info("visiting floor $floorNumber for a while")
+        openDoors()
+        MILLISECONDS.sleep(300)
+        closeDoors()
     }
 
     private fun openDoors() {
         log.info("opening doors")
-        doorsOpen.set(true)
+        doorsOpen = true
     }
 
     private fun closeDoors() {
         log.info("closing doors")
-        doorsOpen.set(false)
+        doorsOpen = false
     }
 
-    inner class ElevatorManager : Runnable {
-        override fun run() {
-            while (true) {
-                while (Dispatcher.requests.isEmpty()) {
-                    TimeUnit.MILLISECONDS.sleep(500)
-                    log.info("waiting for requests")
-                }
-                val nextFloor: Int?
+    private fun loop() {
+        fixedRateTimer(period = 500L, initialDelay = 500L) {
+            val nextFloor: Int?
 
-                val curFloor = Dispatcher.floor.get()
-                if (direction == Direction.UP && Dispatcher.requests.higher(curFloor) != null) {
-                    nextFloor = Dispatcher.requests.higher(curFloor)
-                } else {
-                    nextFloor = Dispatcher.requests.lower(curFloor)
-                    if (nextFloor != null) direction = Direction.DOWN
-                }
-                if (nextFloor == null) continue
+            val curFloor = Dispatcher.floor.get()
 
-                Dispatcher.requests.remove(nextFloor)
+            nextFloor = if (direction == Direction.UP) Dispatcher.requestsUp.higher(curFloor)
+            else Dispatcher.requestsDown.lower(curFloor)
+
+            if (nextFloor != null) {
                 visitFloor(nextFloor)
+                if (direction == Direction.UP) {
+                    Dispatcher.requestsUp.remove(nextFloor)
+                } else {
+                    Dispatcher.requestsDown.remove(nextFloor)
+                }
+            } else {
+                direction = if (direction == Direction.UP) Direction.DOWN else Direction.UP
             }
         }
     }
