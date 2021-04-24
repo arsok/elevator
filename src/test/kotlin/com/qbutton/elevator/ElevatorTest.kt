@@ -4,19 +4,23 @@ import com.qbutton.elevator.building.api.Building
 import com.qbutton.elevator.building.impl.BuildingImpl
 import com.qbutton.elevator.elevator.Dispatcher
 import com.qbutton.elevator.elevator.impl.ElevatorImpl
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import java.util.concurrent.TimeUnit.SECONDS
-import kotlin.concurrent.thread
 import kotlin.test.assertEquals
 
 class ElevatorTest {
     private lateinit var passengersLatch: CountDownLatch
     private lateinit var elevator: ElevatorImpl
     private val building: Building = BuildingImpl()
+
+    private val defaultScope = CoroutineScope(Dispatchers.Default)
 
     @BeforeEach
     fun init() {
@@ -32,7 +36,7 @@ class ElevatorTest {
     @Test
     fun firstUpThenDown() {
         initPassengersLatch(6)
-        
+
         launchPassengerThread(0, 10)
         launchPassengerThread(7, 15)
         launchPassengerThread(8, 12)
@@ -117,7 +121,7 @@ class ElevatorTest {
         val callInCorrectDirection = getCallInCorrectDirection(from, to)
         MILLISECONDS.sleep(100)
 
-        thread {
+        defaultScope.launch {
             callInCorrectDirection.run()
             elevator.enter()
             elevator.requestFloor(to)
