@@ -1,10 +1,19 @@
 package com.qbutton.elevator.elevator
 
-import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.Collections
+import java.util.NavigableSet
+import java.util.TreeSet
 
 object Dispatcher {
-    val requests = Collections.synchronizedNavigableSet(TreeSet<Int>())
+    val requestsUp: NavigableSet<Int> = Collections.synchronizedNavigableSet(TreeSet())
+    val requestsDown: NavigableSet<Int> = Collections.synchronizedNavigableSet(TreeSet())
 
-    val floor = AtomicInteger()
+    @Volatile
+    var curFloor = 0
+
+    fun resetState() {
+        curFloor = 0
+        requestsUp.clear()
+        requestsDown.clear()
+    }
 }

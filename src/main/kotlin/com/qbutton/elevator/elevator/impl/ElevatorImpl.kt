@@ -1,90 +1,104 @@
 package com.qbutton.elevator.elevator.impl
 
 import com.qbutton.elevator.elevator.Dispatcher
+import com.qbutton.elevator.elevator.Dispatcher.requestsDown
+import com.qbutton.elevator.elevator.Dispatcher.requestsUp
 import com.qbutton.elevator.elevator.api.Elevator
-import com.qbutton.elevator.logger.ThreadLogger
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
+import com.qbutton.elevator.elevator.model.Direction
+import org.slf4j.LoggerFactory
+import java.util.Timer
+import java.util.concurrent.TimeUnit.MILLISECONDS
+import kotlin.concurrent.fixedRateTimer
 
 class ElevatorImpl : Elevator {
-
-    val visitedFloors = CopyOnWriteArrayList<Int>()
-    private val log = ThreadLogger(this.javaClass.name)
-
+    private lateinit var elevatorTimer: Timer
+    private val log = LoggerFactory.getLogger(javaClass)
     private var direction = Direction.UP
 
-    private val doorsOpen = AtomicBoolean(true)
+    @Volatile
+    private var doorsOpen = true
+
+    val visitedFloors = mutableListOf<Int>()
+
+    init {
+        createElevatorTimer()
+    }
 
     override fun enter() {
-        while (!doorsOpen.get()) {
-            log.info("waiting for doors to open to enter")
-            TimeUnit.MILLISECONDS.sleep(30)
+        while (!doorsOpen) {
+            log.info("Waiting for doors to open for entering")
+            MILLISECONDS.sleep(30)
         }
         log.info("Entered elevator")
     }
 
     override fun exit() {
-        while (!doorsOpen.get()) {
-            log.info("waiting for doors to open to exit")
-            TimeUnit.MILLISECONDS.sleep(30)
+        while (!doorsOpen) {
+            log.info("Waiting for doors to open for exiting")
+            MILLISECONDS.sleep(30)
         }
         log.info("Exited elevator")
     }
 
     override fun requestFloor(floorNumber: Int) {
-        log.info("requested floor $floorNumber, adding it to queue and waiting")
-        Dispatcher.requests.add(floorNumber)
-        while (Dispatcher.floor.get() != floorNumber) {
-            TimeUnit.MILLISECONDS.sleep(100)
+        log.info("Requested floor $floorNumber from ${Dispatcher.curFloor}")
+
+        if (floorNumber > Dispatcher.curFloor) requestsUp.add(floorNumber)
+        else requestsDown.add(floorNumber)
+
+        while (Dispatcher.curFloor != floorNumber) {
+            MILLISECONDS.sleep(100)
+        }
+    }
+
+    fun shutdown() = elevatorTimer.cancel()
+
+    private fun createElevatorTimer() {
+        elevatorTimer = fixedRateTimer(period = 500L, initialDelay = 500L, name = "Elevator-0") { loop() }
+    }
+
+    private fun loop() {
+        val nextFloor = getNextFloor(Dispatcher.curFloor)
+
+        if (nextFloor != null) {
+            visitFloor(nextFloor)
+            removeFloorFromRequests(nextFloor)
+        } else {
+            direction = getDirectionWithMostWait()
+        }
+    }
+
+    private fun getNextFloor(curFloor: Int): Int? {
+        return if (direction == Direction.UP) {
+            requestsUp.ceiling(curFloor) ?: requestsUp.floor(curFloor)
+        } else {
+            requestsDown.floor(curFloor) ?: requestsDown.ceiling(curFloor)
         }
     }
 
     private fun visitFloor(floorNumber: Int) {
-        if (floorNumber == 0) direction = Direction.UP
-        Dispatcher.floor.set(floorNumber)
-        openDoors()
-        log.info("visiting floor $floorNumber for a while")
-        TimeUnit.MILLISECONDS.sleep(300)
-        closeDoors()
+        Dispatcher.curFloor = floorNumber
         visitedFloors.add(floorNumber)
+        log.info("Visiting floor $floorNumber")
+        openDoors()
+        MILLISECONDS.sleep(300)
+        closeDoors()
     }
 
     private fun openDoors() {
-        log.info("opening doors")
-        doorsOpen.set(true)
+        log.info("Opening doors")
+        doorsOpen = true
     }
 
     private fun closeDoors() {
-        log.info("closing doors")
-        doorsOpen.set(false)
+        log.info("Closing doors")
+        doorsOpen = false
     }
 
-    inner class ElevatorManager : Runnable {
-        override fun run() {
-            while (true) {
-                while (Dispatcher.requests.isEmpty()) {
-                    TimeUnit.MILLISECONDS.sleep(500)
-                    log.info("waiting for requests")
-                }
-                val nextFloor: Int?
-
-                val curFloor = Dispatcher.floor.get()
-                if (direction == Direction.UP && Dispatcher.requests.higher(curFloor) != null) {
-                    nextFloor = Dispatcher.requests.higher(curFloor)
-                } else {
-                    nextFloor = Dispatcher.requests.lower(curFloor)
-                    if (nextFloor != null) direction = Direction.DOWN
-                }
-                if (nextFloor == null) continue
-
-                Dispatcher.requests.remove(nextFloor)
-                visitFloor(nextFloor)
-            }
-        }
+    private fun removeFloorFromRequests(floor: Int) {
+        if (direction == Direction.UP) requestsUp.remove(floor)
+        else requestsDown.remove(floor)
     }
-}
 
-enum class Direction {
-    UP, DOWN
+    private fun getDirectionWithMostWait() = if (requestsUp.size > requestsDown.size) Direction.UP else Direction.DOWN
 }
