@@ -7,12 +7,14 @@ import com.qbutton.elevator.elevator.impl.ElevatorImpl
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit.MILLISECONDS
 import java.util.concurrent.TimeUnit.SECONDS
 import kotlin.concurrent.thread
 import kotlin.test.assertEquals
 
 class ElevatorTest {
+    private lateinit var passengersLatch: CountDownLatch
     private lateinit var elevator: ElevatorImpl
     private val building: Building = BuildingImpl()
 
@@ -29,47 +31,52 @@ class ElevatorTest {
 
     @Test
     fun firstUpThenDown() {
+        initPassengersLatch(6)
+        
         launchPassengerThread(0, 10)
         launchPassengerThread(7, 15)
-        launchPassengerThread(6, 2)
         launchPassengerThread(8, 12)
         launchPassengerThread(7, 5)
+        launchPassengerThread(6, 2)
 
         SECONDS.sleep(3)
         launchPassengerThread(4, 22)
 
-        waitForAllRequestsToComplete()
-
+        passengersLatch.await()
         assertEquals(listOf(7, 8, 10, 12, 15, 7, 6, 5, 2, 4, 22), elevator.visitedFloors)
     }
 
     @Test
     fun sameDirection() {
+        initPassengersLatch(2)
+
         launchPassengerThread(2, 12)
         launchPassengerThread(8, 506)
 
-        waitForAllRequestsToComplete()
-
+        passengersLatch.await()
         assertEquals(listOf(2, 8, 12, 506), elevator.visitedFloors)
     }
 
     @Test
     fun theParkingOrThereAndBackAgain() {
+        initPassengersLatch(3)
+
         launchPassengerThread(-2, -7)
 
         MILLISECONDS.sleep(500)
         launchPassengerThread(-4, 15)
 
-        SECONDS.sleep(1)
+        MILLISECONDS.sleep(500)
         launchPassengerThread(3, 10)
 
-        waitForAllRequestsToComplete()
-
+        passengersLatch.await()
         assertEquals(listOf(-2, -7, -4, 3, 10, 15), elevator.visitedFloors)
     }
 
     @Test
     fun sameFloorDifferentDirections() {
+        initPassengersLatch(4)
+
         launchPassengerThread(3, 5)
         launchPassengerThread(3, 1)
 
@@ -77,42 +84,45 @@ class ElevatorTest {
         launchPassengerThread(3, -100)
         launchPassengerThread(3, 222)
 
-        waitForAllRequestsToComplete()
-
+        passengersLatch.await()
         assertEquals(listOf(3, 5, 3, 1, 3, -100, 3, 222), elevator.visitedFloors)
     }
 
     @Test
     fun sameFloorContinueOpposite() {
+        initPassengersLatch(2)
+
         launchPassengerThread(-1, -5)
 
-        SECONDS.sleep(1)
+        MILLISECONDS.sleep(500)
         launchPassengerThread(-5, 2)
 
-        waitForAllRequestsToComplete()
-
+        passengersLatch.await()
         assertEquals(listOf(-1, -5, -5, 2), elevator.visitedFloors)
     }
 
     @Test
     fun startFloorMultipleTimes() {
+        initPassengersLatch(3)
+
         launchPassengerThread(0, 15)
         launchPassengerThread(18, 0)
         launchPassengerThread(16, 0)
 
-        waitForAllRequestsToComplete()
-
+        passengersLatch.await()
         assertEquals(listOf(15, 16, 0, 18, 0), elevator.visitedFloors)
     }
 
     private fun launchPassengerThread(from: Int, to: Int) {
         val callInCorrectDirection = getCallInCorrectDirection(from, to)
+        MILLISECONDS.sleep(100)
 
         thread {
             callInCorrectDirection.run()
             elevator.enter()
             elevator.requestFloor(to)
             elevator.exit()
+            passengersLatch.countDown()
         }
     }
 
@@ -124,9 +134,7 @@ class ElevatorTest {
         }
     }
 
-    private fun waitForAllRequestsToComplete() {
-        do {
-            SECONDS.sleep(3)
-        } while (Dispatcher.requestsUp.isNotEmpty() || Dispatcher.requestsDown.isNotEmpty())
+    private fun initPassengersLatch(passengersCount: Int) {
+        passengersLatch = CountDownLatch(passengersCount)
     }
 }
