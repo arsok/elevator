@@ -4,7 +4,7 @@
 
 # Elevator
 
-<h4>Simple simulation of elevator in a building.
+<h4>Simple simulation of elevator in a building. <br>
 
 Uses: </h4>
 * `NavigableSet` for representing requests in different directions
