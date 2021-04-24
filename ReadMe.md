@@ -4,9 +4,9 @@
 
 # Elevator
 
-<h4>Simple simulation of elevator in a building. <br>
+<h4>Simple simulation of elevator in a building.</h4>
 
-Uses: </h4>
+Uses: 
 * `NavigableSet` for representing requests in different directions
 * `FixedRateTimer` for looping and managing the requests
 * `Coroutines` and `CountDownLatch` for testing
